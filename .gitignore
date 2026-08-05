@@ -6,3 +6,4 @@ data/quran_full.json
 data/ch1.json
 data/ch2.json
 config.env
+certs/

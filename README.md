@@ -30,6 +30,14 @@ python3 -m venv .venv
 .venv/bin/python -m backend.app
 ```
 
+> **Browser won't connect?** If the page won't load, your browser may be forcing
+> HTTPS (Firefox "HTTPS-only mode" / Chrome auto-upgrade) — the plain-HTTP server
+> then fails. Two fixes:
+> - Use the HTTPS port instead: **https://localhost:5001** (self-signed; click
+>   "Advanced → continue"). Mic works here too.
+> - Or open **http://localhost:5000** and disable HTTPS-only for localhost
+>   (Firefox: turn off "HTTPS-Only Mode"; Chrome: `chrome://net-internals/#hsts`).
+
 Allow microphone access, press 🎤 **ابدأ**, and recite the visible page.
 
 ## Configuration (`config.env`)

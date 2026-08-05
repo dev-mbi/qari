@@ -96,6 +96,21 @@ def main():
             print(f"[qari] warmup failed: {e}")
 
     threading.Thread(target=warmup, daemon=True).start()
+
+    cert = config.BASE_DIR / "certs" / "cert.pem"
+    key = config.BASE_DIR / "certs" / "key.pem"
+    if cert.exists() and key.exists():
+        # HTTPS fallback on 5001 for browsers that force https://localhost:5000
+        def run_https():
+            try:
+                socketio.run(app, host="0.0.0.0", port=5001,
+                             ssl_context=(str(cert), str(key)),
+                             debug=False, allow_unsafe_werkzeug=True)
+            except Exception as e:
+                print(f"[qari] https on 5001 failed: {e}")
+        threading.Thread(target=run_https, daemon=True).start()
+        print("[qari] HTTPS fallback on https://localhost:5001")
+
     socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
 
 
