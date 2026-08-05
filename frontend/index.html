@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>قاري — AI Quran Recitation Feedback</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🕌</span>
+      <h1>قارِئ</h1>
+      <span class="tagline">AI Quran Recitation Feedback</span>
+    </div>
+    <div class="controls">
+      <button id="btn-prev" class="nav-btn" title="الصفحة السابقة">‹</button>
+      <div class="page-indicator">
+        <label for="page-input">صفحة</label>
+        <input id="page-input" type="number" min="1" max="604" value="1">
+        <span id="page-total">/ 604</span>
+      </div>
+      <button id="btn-next" class="nav-btn" title="الصفحة التالية">›</button>
+      <button id="btn-mic" class="mic-btn" title="ابدأ/أوقف التلاوة">
+        <span class="mic-icon">🎤</span>
+        <span id="mic-label">ابدأ</span>
+      </button>
+    </div>
+    <div class="status">
+      <span id="conn-dot" class="dot"></span>
+      <span id="conn-text">غير متصل</span>
+      <span id="accuracy" class="accuracy">دقة: —</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="mushaf-frame">
+      <div id="page-header" class="page-header"></div>
+      <div id="mushaf" class="mushaf"></div>
+      <div id="page-footer" class="page-footer"></div>
+    </div>
+    <div id="last-text" class="last-text"></div>
+  </main>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
