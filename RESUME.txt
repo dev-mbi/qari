@@ -1,0 +1,58 @@
+WHERE TO RESUME — AI QURAN RECITATION FEEDBACK SYSTEM
+=====================================================
+Written: 2026-08-06
+
+STATUS
+------
+Everything is built, tested (37 tests passing), committed and pushed to GitHub
+(public repo: dev-mbi/qari, branch main). The app runs locally and serves over:
+  - http://localhost:5000   (plain HTTP)
+  - https://localhost:5001  (self-signed cert, for browsers that force HTTPS)
+
+START IT
+--------
+  cd /home/mbi/qari && ./run.sh
+Then open:  https://localhost:5001   (click "Advanced -> Continue" on the cert warning)
+
+NEXT STEP (blocked: NO MICROPHONE YET)
+-------------------------------------
+The user does not have a microphone yet ("i dont have a microphone lol, i will get
+one yesterday"). When the mic arrives:
+  1. Start the server:  cd /home/mbi/qari && ./run.sh
+  2. Open https://localhost:5001 in the browser.
+  3. Click the padlock icon in the address bar -> allow Microphone (Chrome blocks
+     it by default the first time). Then reload the page.
+  4. Click the green "Start" mic button and recite the displayed page.
+     Expected behaviour: the active line turns green and follows the recitation,
+     wrong words turn red, missing words orange, accuracy updates live, and a
+     "Well done!" banner appears on reaching the last line with >=85% accuracy.
+  5. IMPORTANT: never open the LAN IP (http://192.168.x.x:5000) for mic use -
+     Chrome blocks microphone on non-secure origins. Always use https://localhost:5001.
+
+KNOWN NOTES
+-----------
+- Mic is untested end-to-end on a real device (was verified in headless Chrome
+  with a fake audio device: Start/Stop + "Listening..." + no JS errors).
+- ASR runs faster-whisper "small" on CPU, ~0.9s per 2.5s audio chunk (no GPU on
+  this machine). Groq fallback is available if whisper misrecognizes the
+  user's voice or is too slow (see config.env, GROQ toggle).
+- If word matching feels off for the user's voice, tune matching thresholds in
+  backend/comparer.py.
+
+KEY FILES
+---------
+- /home/mbi/qari/backend/app.py       : Flask+SocketIO server (HTTP 5000 + HTTPS 5001)
+- /home/mbi/qari/backend/engine.py    : orchestration: transcribe -> track -> compare
+- /home/mbi/qari/backend/asr.py       : faster-whisper local / Groq fallback
+- /home/mbi/qari/frontend/            : Mushaf UI (vanilla JS), all controls in English
+- /home/mbi/qari/data/pages.json      : 604 pages x 15 lines (Tanzil Uthmani, Madani layout)
+- /home/mbi/qari/tests/               : 37 passing tests
+- /home/mbi/qari/certs/               : self-signed cert/key for HTTPS 5001 (gitignored)
+
+RUN THE TESTS
+-------------
+  cd /home/mbi/qari && .venv/bin/pytest tests -q
+
+RESTART AFTER REBOOT
+--------------------
+  systemctl --user start qari.service   (or cd /home/mbi/qari && ./run.sh)

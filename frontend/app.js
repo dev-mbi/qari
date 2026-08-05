@@ -15,6 +15,7 @@ const el = {
   connDot: document.getElementById('conn-dot'),
   connText: document.getElementById('conn-text'),
   accuracy: document.getElementById('accuracy'),
+  micStatus: document.getElementById('mic-status'),
   lastText: document.getElementById('last-text'),
 };
 
@@ -35,12 +36,12 @@ let score = { correct: 0, total: 0 };
 
 socket.on('connect', () => {
   el.connDot.classList.add('online');
-  el.connText.textContent = 'متصل';
+  el.connText.textContent = 'Connected';
 });
 
 socket.on('disconnect', () => {
   el.connDot.classList.remove('online');
-  el.connText.textContent = 'غير متصل';
+  el.connText.textContent = 'Disconnected';
 });
 
 socket.on('page', (data) => {
@@ -77,7 +78,7 @@ function renderPage(data) {
   el.pageHeader.innerHTML = surah
     ? `<span class="surah-name">سُورَةُ ${surah.name}</span>`
     : '';
-  el.pageFooter.innerHTML = `صفحة ${data.page} — مصحف المدينة (15 سطر)`;
+  el.pageFooter.innerHTML = `Page ${data.page} — Madani Mushaf (15 lines)`;
 
   // 15 slots, place real lines at their mushaf line number
   for (let i = 1; i <= 15; i++) {
@@ -116,7 +117,7 @@ function renderPage(data) {
 function applyFeedback(data) {
   if (data.text) el.lastText.textContent = `… ${data.text}`;
   if (typeof data.accuracy === 'number' && data.accuracy !== null) {
-    el.accuracy.textContent = `دقة: ${data.accuracy}٪`;
+    el.accuracy.textContent = `Accuracy: ${data.accuracy}%`;
   }
   if (data.line == null) return;
 
@@ -153,7 +154,7 @@ function applyFeedback(data) {
       });
     }
     const pct = score.total ? Math.round((score.correct / score.total) * 100) : 0;
-    el.accuracy.textContent = `دقة الصفحة: ${pct}٪`;
+    el.accuracy.textContent = `Page accuracy: ${pct}%`;
 
     // page completion: reached the last line with a good score
     if (data.line_no === lastContentNo && pct >= 85 && score.total > 0 && !completionShown) {
@@ -173,11 +174,11 @@ function showCompletion(pct) {
     banner.className = 'completion hidden';
     banner.innerHTML = `
       <div class="completion-card">
-        <div class="completion-title">أحسنت! 🎉</div>
-        <div class="completion-score">دقة الصفحة: <span id="completion-pct"></span>٪</div>
+        <div class="completion-title">Well done! 🎉</div>
+        <div class="completion-score">Page accuracy: <span id="completion-pct"></span>%</div>
         <div class="completion-actions">
-          <button id="btn-retry" class="done-btn">أعد المحاولة</button>
-          <button id="btn-next-page" class="done-btn primary">الصفحة التالية ←</button>
+          <button id="btn-retry" class="done-btn">Try again</button>
+          <button id="btn-next-page" class="done-btn primary">Next page →</button>
         </div>
       </div>`;
     document.body.appendChild(banner);
@@ -206,12 +207,12 @@ function resetWordStatuses() {
   }));
   score = { correct: 0, total: 0 };
   scoredLines = new Set();
-  el.accuracy.textContent = 'دقة الصفحة: —';
+  el.accuracy.textContent = 'Page accuracy: —';
 }
 
 function resetScore() {
   score = { correct: 0, total: 0 };
-  el.accuracy.textContent = 'دقة: —';
+  el.accuracy.textContent = 'Accuracy: —';
   el.lastText.textContent = '';
 }
 
@@ -267,7 +268,8 @@ async function startRecording() {
   processor.connect(audioCtx.destination); // keep alive
   recording = true;
   el.btnMic.classList.add('recording');
-  el.micLabel.textContent = 'أوقف';
+  el.micLabel.textContent = 'Stop';
+  setMicStatus('');
 }
 
 function stopRecording() {
@@ -276,7 +278,13 @@ function stopRecording() {
   pending = new Float32Array(0);
   recording = false;
   el.btnMic.classList.remove('recording');
-  el.micLabel.textContent = 'ابدأ';
+  el.micLabel.textContent = 'Start';
+  setMicStatus('');
+}
+
+function setMicStatus(msg, isError) {
+  el.micStatus.textContent = msg;
+  el.micStatus.classList.toggle('error', !!isError);
 }
 
 function sendChunk(f32) {
@@ -298,9 +306,24 @@ function arrayBufferToBase64(buffer) {
 
 el.btnMic.addEventListener('click', async () => {
   if (recording) { stopRecording(); return; }
+  setMicStatus('');
   try {
     await startRecording();
+    setMicStatus('Listening…');
   } catch (err) {
-    alert('تعذر الوصول إلى الميكروفون: ' + err.message);
+    const n = err.name;
+    let msg;
+    if (n === 'NotAllowedError') {
+      msg = 'Microphone blocked. Click the mic/padlock icon in the address bar and allow the microphone, then try again.';
+    } else if (n === 'NotFoundError') {
+      msg = 'No microphone found. Plug one in or check your input device, then refresh the page.';
+    } else if (n === 'NotReadableError') {
+      msg = 'Microphone is in use by another app. Close it, then try again.';
+    } else if (!window.isSecureContext) {
+      msg = 'Microphone needs a secure connection. Open https://localhost:5001 (not the LAN IP / http).';
+    } else {
+      msg = 'Could not access the microphone: ' + (err.message || n);
+    }
+    setMicStatus(msg, true);
   }
 });

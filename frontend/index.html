@@ -17,22 +17,23 @@
       <span class="tagline">AI Quran Recitation Feedback</span>
     </div>
     <div class="controls">
-      <button id="btn-prev" class="nav-btn" title="الصفحة السابقة">‹</button>
+      <button id="btn-prev" class="nav-btn" title="Previous page">‹</button>
       <div class="page-indicator">
-        <label for="page-input">صفحة</label>
+        <label for="page-input">Page</label>
         <input id="page-input" type="number" min="1" max="604" value="1">
         <span id="page-total">/ 604</span>
       </div>
-      <button id="btn-next" class="nav-btn" title="الصفحة التالية">›</button>
-      <button id="btn-mic" class="mic-btn" title="ابدأ/أوقف التلاوة">
+      <button id="btn-next" class="nav-btn" title="Next page">›</button>
+      <button id="btn-mic" class="mic-btn" title="Start / Stop recitation">
         <span class="mic-icon">🎤</span>
-        <span id="mic-label">ابدأ</span>
+        <span id="mic-label">Start</span>
       </button>
     </div>
     <div class="status">
       <span id="conn-dot" class="dot"></span>
-      <span id="conn-text">غير متصل</span>
-      <span id="accuracy" class="accuracy">دقة: —</span>
+      <span id="conn-text">Disconnected</span>
+      <span id="accuracy" class="accuracy">Accuracy: —</span>
+      <span id="mic-status" class="mic-status"></span>
     </div>
   </header>
 
