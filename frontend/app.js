@@ -10,6 +10,8 @@ const el = {
   pageTotal: document.getElementById('page-total'),
   btnMic: document.getElementById('btn-mic'),
   micLabel: document.getElementById('mic-label'),
+  btnNext: document.getElementById('btn-next'),
+  btnPrev: document.getElementById('btn-prev'),
   connDot: document.getElementById('conn-dot'),
   connText: document.getElementById('conn-text'),
   accuracy: document.getElementById('accuracy'),
