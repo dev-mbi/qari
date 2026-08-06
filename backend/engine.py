@@ -61,7 +61,13 @@ class Engine:
 
         prompt = None
         if st["last_line"] is not None:
-            prompt = lines[st["last_line"]]["text"][:200]
+            # current line + the next line -> whisper knows what the reader is
+            # about to recite, so words at chunk boundaries stay in context
+            idx = st["last_line"]
+            parts = [lines[idx]["text"]]
+            if idx + 1 < len(lines):
+                parts.append(lines[idx + 1]["text"])
+            prompt = " ".join(parts)[:400]
 
         with _LOCK:
             text = asr.transcribe(pcm_bytes, sample_rate, initial_prompt=prompt)

@@ -160,3 +160,20 @@
 **Notes:**
 - Run: `./run.sh` → open http://localhost:5000 → allow mic → 🎤 ابدأ
 - Server during build runs via `systemd-run --user --unit=qari`
+
+### Day 8 — Performance & ASR quality
+**Date:** 2026-08-06
+**Done:**
+- **Silence energy gate** (`asr._is_silence`): empty/low-RMS chunks return "" before the model is ever called — an empty 2.5s chunk dropped from ~0.9s to ~0.3ms of CPU; the frontend now also drops silent chunks client-side (RMS gate in `app.js`)
+- **Anti-aliasing resampler** (`asr.resample_f32`, Hamming-windowed sinc low-pass + decimate; mirrored in `app.js` `resampleTo16k`): 48k mic input no longer point-decimated, so high-frequency noise no longer folds into the speech band — better recognition for the same audio
+- **Tunable ASR knobs** in `config.py` (env via `config.env`): `QARI_BEAM_SIZE` (1=fast greedy, 5=better quality), `QARI_CONDITION_ON_PREVIOUS`, `QARI_VAD_MIN_SILENCE`; wired into faster-whisper call incl. `without_timestamps` + `vad_parameters`
+- **Lookahead initial_prompt** (`engine.py`): prompt now = current line + next line (up to 400 chars) so whisper knows what the reader is about to recite, keeping chunk-boundary words in context
+- New `tests/test_asr.py` (10 tests: gate, resampler lengths/frequencies, config defaults)
+
+**In progress / blocked:**
+- Real Arabic speech E2E still needs a human mic (verified pipeline with live model + simulated payload instead)
+
+**Notes:**
+- Full suite: **47 tests pass** (`.venv/bin/python -m pytest tests -q`; plain `pytest` misses the `backend` package on `sys.path`)
+- Benchmarked with the real cached model: silence chunk 0.3ms; white noise above gate is VAD-rejected in ~32ms
+- To try higher quality: `QARI_BEAM_SIZE=5` in `config.env`

@@ -4,10 +4,20 @@ Written: 2026-08-06
 
 STATUS
 ------
-Everything is built, tested (37 tests passing), committed and pushed to GitHub
+Everything is built, tested (47 tests passing), committed and pushed to GitHub
 (public repo: dev-mbi/qari, branch main). The app runs locally and serves over:
   - http://localhost:5000   (plain HTTP)
   - https://localhost:5001  (self-signed cert, for browsers that force HTTPS)
+
+LATEST (Day 8 — Performance & ASR quality)
+-----------------------------------------
+- Silent chunks are dropped before the model (client + server gates): an empty
+  2.5s chunk costs ~0.3ms instead of ~0.9s of CPU.
+- Anti-aliasing low-pass resampler added on client and server (48k -> 16k no
+  longer point-decimated) — cleaner audio into whisper.
+- Tunable ASR knobs in config.env: QARI_BEAM_SIZE (1 fast / 5 accurate),
+  QARI_CONDITION_ON_PREVIOUS, QARI_VAD_MIN_SILENCE.
+- Lookahead prompt: whisper now gets current + next line text for context.
 
 START IT
 --------
@@ -37,7 +47,8 @@ KNOWN NOTES
   this machine). Groq fallback is available if whisper misrecognizes the
   user's voice or is too slow (see config.env, GROQ toggle).
 - If word matching feels off for the user's voice, tune matching thresholds in
-  backend/comparer.py.
+  backend/comparer.py. For better recognition (not latency) set
+  QARI_BEAM_SIZE=5 in config.env.
 
 KEY FILES
 ---------
@@ -46,7 +57,7 @@ KEY FILES
 - /home/mbi/qari/backend/asr.py       : faster-whisper local / Groq fallback
 - /home/mbi/qari/frontend/            : Mushaf UI (vanilla JS), all controls in English
 - /home/mbi/qari/data/pages.json      : 604 pages x 15 lines (Tanzil Uthmani, Madani layout)
-- /home/mbi/qari/tests/               : 37 passing tests
+- /home/mbi/qari/tests/               : 47 passing tests
 - /home/mbi/qari/certs/               : self-signed cert/key for HTTPS 5001 (gitignored)
 
 RUN THE TESTS

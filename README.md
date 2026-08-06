@@ -47,7 +47,18 @@ GROQ_API_KEY=your_key_here      # free at console.groq.com
 GROQ_MODEL=whisper-large-v3-turbo
 # Optional model size: tiny / base / small / medium / large-v3
 QARI_MODEL=small
+# Speed/quality trade-off: 1 = greedy (fastest), 5 = beam search (better accuracy, ~2x slower)
+QARI_BEAM_SIZE=1
+# Condition decoding on the previous segment within a call (1 or 0)
+QARI_CONDITION_ON_PREVIOUS=1
+# VAD silence gap that separates segments, ms (default 500)
+QARI_VAD_MIN_SILENCE=500
 ```
+
+**Latency tricks built in:** silent chunks are dropped on the client (RMS gate)
+and again on the server before the model — an empty 2.5s chunk now costs ~0.3ms
+instead of ~0.9s of CPU. Audio is resampled to 16kHz through a low-pass FIR on
+both client and server, so 48kHz mic input doesn't alias into the speech band.
 
 ## Tests
 ```bash

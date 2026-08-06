@@ -233,18 +233,57 @@ el.pageInput.addEventListener('change', () => goToPage(parseInt(el.pageInput.val
 const TARGET_SR = 16000;
 const CHUNK_SECONDS = 2.5;
 const CHUNK_LEN = Math.floor(TARGET_SR * CHUNK_SECONDS);
+const SILENCE_RMS_THRESHOLD = 0.004; // drop near-silent chunks before they reach the ASR
 let audioCtx = null;
 let pcmBuf = [];
 let pending = new Float32Array(0);
 
-function downsampleTo16k(samples, inputRate) {
-  if (inputRate === TARGET_SR) return samples;
-  const step = inputRate / TARGET_SR;
-  const out = new Float32Array(Math.floor(samples.length / step));
-  for (let i = 0; i < out.length; i++) {
-    out[i] = samples[Math.floor(i * step)];
+function resampleTo16k(samples, inputRate) {
+  const OUT = 16000;
+  if (inputRate === OUT) return samples;
+  const ratio = inputRate / OUT;
+  if (ratio < 1) {
+    const out = new Float32Array(Math.floor(samples.length * ratio));
+    for (let i = 0; i < out.length; i++) {
+      const pos = i / ratio;
+      const i0 = Math.floor(pos);
+      const i1 = Math.min(i0 + 1, samples.length - 1);
+      out[i] = samples[i0] + (samples[i1] - samples[i0]) * (pos - i0);
+    }
+    return out;
+  }
+  // decimate: low-pass (Hamming-windowed sinc) before downsampling to avoid aliasing
+  const fc = 0.45 / ratio;
+  const ntaps = Math.max(9, (Math.round(8 * ratio) | 1));
+  const center = (ntaps - 1) / 2;
+  const kernel = new Float32Array(ntaps);
+  let sum = 0;
+  for (let n = 0; n < ntaps; n++) {
+    const x = n - center;
+    let h = x === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * x) / (Math.PI * x);
+    h *= 0.54 - 0.46 * Math.cos((2 * Math.PI * n) / (ntaps - 1));
+    kernel[n] = h;
+    sum += h;
+  }
+  for (let n = 0; n < ntaps; n++) kernel[n] /= sum;
+
+  const outLen = Math.floor(samples.length / ratio);
+  const padded = new Float32Array(samples.length + ntaps);
+  padded.set(samples, Math.floor(center));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const start = Math.floor(i * ratio);
+    let acc = 0;
+    for (let k = 0; k < ntaps; k++) acc += padded[start + k] * kernel[k];
+    out[i] = acc;
   }
   return out;
+}
+
+function rms(samples) {
+  let acc = 0;
+  for (let i = 0; i < samples.length; i++) acc += samples[i] * samples[i];
+  return Math.sqrt(acc / samples.length);
 }
 
 async function startRecording() {
@@ -253,15 +292,16 @@ async function startRecording() {
   const source = audioCtx.createMediaStreamSource(stream);
   const processor = audioCtx.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (e) => {
-    const chunk = downsampleTo16k(e.inputBuffer.getChannelData(0), audioCtx.sampleRate);
+    const chunk = resampleTo16k(e.inputBuffer.getChannelData(0), audioCtx.sampleRate);
     // append to pending
     const merged = new Float32Array(pending.length + chunk.length);
     merged.set(pending);
     merged.set(chunk, pending.length);
     pending = merged;
     if (pending.length >= CHUNK_LEN) {
-      sendChunk(pending.slice(0, CHUNK_LEN));
+      const buf = pending.slice(0, CHUNK_LEN);
       pending = pending.slice(CHUNK_LEN);
+      if (rms(buf) >= SILENCE_RMS_THRESHOLD) sendChunk(buf);
     }
   };
   source.connect(processor);
