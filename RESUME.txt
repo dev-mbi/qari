@@ -24,6 +24,13 @@ START IT
   cd /home/mbi/qari && ./run.sh
 Then open:  https://localhost:5001   (click "Advanced -> Continue" on the cert warning)
 
+PIPELINE
+--------
+Mic -> 48k -> FIR low-pass 16k -> RMS gate (drop silence) -> 2.5s chunk
+  -> socket audio_chunk -> RMS gate -> faster-whisper (beam=1, VAD)
+  -> current+next line prompt -> normalize -> tracker (line) -> comparer (words)
+  -> feedback emit -> Mushaf UI (green line / red wrong / orange missing / accuracy)
+
 NEXT STEP (blocked: NO MICROPHONE YET)
 -------------------------------------
 The user does not have a microphone yet ("i dont have a microphone lol, i will get

@@ -37,6 +37,72 @@ flowchart LR
   end
 ```
 
+## GRAPH — module dependency map
+
+```mermaid
+flowchart TB
+  subgraph Backend["backend/"]
+    APP["app.py<br/>Flask + SocketIO routes"] --> ENGINE["engine.py<br/>session state + orchestration"]
+    ENGINE --> ASR["asr.py<br/>whisper / Groq / gates"]
+    ENGINE --> TRACK["tracker.py<br/>line detection"]
+    ENGINE --> COMP["comparer.py<br/>word compare"]
+    TRACK --> NORM["normalize.py<br/>Arabic unify"]
+    COMP --> NORM
+    ENGINE --> PAGES["data/pages.json"]
+    ASR --> CONFIG["config.py<br/>all env knobs"]
+  end
+  subgraph Front["frontend/"]
+    JS["app.js<br/>mic + resample + socket"] --> HTML["index.html"]
+    JS --> CSS["style.css"]
+  end
+  Backend --> Front["socket /api/page JSON"]
+  subgraph Tests["tests/"]
+    TA["test_app.py"]
+    TE["test_edge_cases.py"]
+    TN["test_normalize.py"]
+    TT["test_tracker.py"]
+    TC["test_comparer.py"]
+    TASR["test_asr.py"]
+  end
+  Tests -.import.-> Backend
+```
+
+## GRAPH — config knobs (config.env)
+
+```mermaid
+flowchart LR
+  ENV["env vars"] --> K1["QARI_MODEL<br/>tiny|base|small|medium|large-v3"]
+  ENV --> K2["QARI_BEAM_SIZE<br/>1 fast / 5 accurate"]
+  ENV --> K3["QARI_CONDITION_ON_PREVIOUS<br/>1|0"]
+  ENV --> K4["QARI_VAD_MIN_SILENCE<br/>ms"]
+  ENV --> K5["GROQ_API_KEY + GROQ_MODEL<br/>cloud fallback"]
+```
+
+## GRAPH — word status state machine
+
+```mermaid
+stateDiagram-v2
+  [*] --> Missing: word in mushaf, not yet heard
+  Missing --> Correct: equal match after normalize
+  Missing --> Wrong: replace / fuzzy<0.85 / extra word
+  Correct --> Wrong: later chunk shows error
+  Wrong --> Correct: retry / re-read
+  Correct --> [*]: page done, scored once per line
+```
+
+## GRAPH — per-session dependency chain
+
+```mermaid
+flowchart LR
+  D1["Day 1<br/>dataset+env"] --> D2["Day 2<br/>backend streaming"]
+  D2 --> D3["Day 3<br/>algorithms TDD"]
+  D3 --> D4["Day 4<br/>Mushaf UI"]
+  D4 --> D5["Day 5<br/>polish"]
+  D5 --> D67["Day 6-7<br/>integration+verify"]
+  D67 --> D8["Day 8<br/>perf & ASR quality"]
+  D8 -.blocked.-> D9["Day 9<br/>live mic E2E test"]
+```
+
 ## GRAPH — sessions & history
 
 ```mermaid
