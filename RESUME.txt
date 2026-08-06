@@ -2,6 +2,14 @@ WHERE TO RESUME — AI QURAN RECITATION FEEDBACK SYSTEM
 =====================================================
 Written: 2026-08-06
 
+RESUME HERE (incomplete task)
+-----------------------------
+Delete GitHub repo `dev-mbi/register`. Blocked: token lacks `delete_repo` scope.
+Device flow `gh auth refresh -h github.com -s delete_repo` not completing.
+Either user deletes via web UI (settings -> Danger Zone -> Delete this repository),
+or retry device flow and approve the code within ~1 minute. Project code itself
+is done and clean.
+
 STATUS
 ------
 Everything is built, tested (47 tests passing), committed and pushed to GitHub

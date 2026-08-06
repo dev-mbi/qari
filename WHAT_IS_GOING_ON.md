@@ -11,6 +11,7 @@ Project: **AI Quran Recitation Visual Feedback System** (git repo: /home/mbi/qar
 - Committed: `104885e` on main.
 - Server: `./run.sh` → http://localhost:5000 + https://localhost:5001 (self-signed, for mic).
 - Live mic E2E still UNTESTED on real hardware — user had no microphone. Human test needed.
+- **UNFINISHED TASK — resume here:** delete `dev-mbi/register` from GitHub (user's request). Blocked: gh token lacks `delete_repo` scope; `gh auth refresh -h github.com -s delete_repo` device flow fails to complete (3 attempts, code keeps expiring). Fallbacks: (a) user deletes via web → github.com/dev-mbi/register/settings → Danger Zone → Delete; (b) retry device flow and approve within ~1 min. No code changes pending — git tree clean.
 
 ## GRAPH — pipeline & data flow
 
