@@ -17,21 +17,41 @@ _model = None
 _SILENCE_THRESHOLD = getattr(config, "SILENCE_RMS_THRESHOLD", 0.004)
 
 
-def _is_silence(audio: bytes | np.ndarray, sample_rate: int = config.SAMPLE_RATE) -> bool:
+def pcm_bytes_to_f32(pcm_bytes: bytes, sample_rate: int = config.SAMPLE_RATE,
+                     fmt: str = "i16") -> np.ndarray:
+    """Decode raw little-endian PCM bytes to a float32 array in [-1, 1].
+
+    fmt selects the wire format explicitly (no guessing):
+      "i16" -> 16-bit PCM, 2 bytes/sample (canonical browser format)
+      "f32" -> float32, 4 bytes/sample (legacy float32 clients)
+    """
+    n = len(pcm_bytes)
+    if fmt == "f32":
+        if n % 4:
+            raise ValueError(f"float32 PCM must be a multiple of 4 bytes, got {n}")
+        return np.frombuffer(pcm_bytes, dtype=np.float32).astype(np.float32)
+    if n % 2:
+        raise ValueError(f"16-bit PCM must be a multiple of 2 bytes, got {n}")
+    return np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+
+
+def _is_silence(audio: bytes | np.ndarray, sample_rate: int = config.SAMPLE_RATE,
+                fmt: str = "i16") -> bool:
     """True if the chunk has no meaningful speech energy (RMS below threshold).
 
-    Works on 16-bit PCM bytes or a float32 numpy array. Short chunks are still
-    judged on their actual RMS so brief sounds are never gated away.
+    Works on raw int16/float32 PCM bytes or a float32 numpy array. Short
+    chunks are still judged on their actual RMS so brief sounds are never
+    gated away.
     """
     if isinstance(audio, np.ndarray):
         x = audio
     else:
         if not audio:
             return True
-        x = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
+        x = pcm_bytes_to_f32(audio, sample_rate, fmt)
     if x.size == 0:
         return True
-    rms = float(np.sqrt(np.mean(x * x)))
+    rms = float(np.sqrt(np.mean(x.astype(np.float64) * x)))
     return rms < _SILENCE_THRESHOLD
 
 
@@ -98,10 +118,14 @@ def pcm16_to_f32(pcm_bytes: bytes) -> np.ndarray:
     return np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
 
-def transcribe_local(audio: bytes, sample_rate: int = config.SAMPLE_RATE,
-                     language: str = "ar", initial_prompt: str = None) -> str:
+def transcribe_local(audio: bytes | np.ndarray, sample_rate: int = config.SAMPLE_RATE,
+                     language: str = "ar", initial_prompt: str = None,
+                     fmt: str = "i16") -> str:
     model = get_model()
-    audio_arr = pcm16_to_f32(audio) if isinstance(audio, bytes) else audio
+    if isinstance(audio, np.ndarray):
+        audio_arr = np.asarray(audio, dtype=np.float32)
+    else:
+        audio_arr = pcm_bytes_to_f32(audio, sample_rate, fmt)
     if sample_rate != config.SAMPLE_RATE:
         audio_arr = resample_f32(audio_arr, sample_rate, config.SAMPLE_RATE)
     segments, _ = model.transcribe(
@@ -117,15 +141,19 @@ def transcribe_local(audio: bytes, sample_rate: int = config.SAMPLE_RATE,
     return " ".join(seg.text for seg in segments).strip()
 
 
-def transcribe_groq(audio: bytes, sample_rate: int = config.SAMPLE_RATE,
-                    language: str = "ar", initial_prompt: str = None) -> str:
+def transcribe_groq(audio: bytes | np.ndarray, sample_rate: int = config.SAMPLE_RATE,
+                    language: str = "ar", initial_prompt: str = None,
+                    fmt: str = "i16") -> str:
     from openai import OpenAI
 
     client = OpenAI(base_url="https://api.groq.com/openai/v1",
                     api_key=config.GROQ_API_KEY)
     if isinstance(audio, np.ndarray):
-        audio = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
-    wav = pcm_to_wav(audio, sample_rate)
+        f32 = np.asarray(audio, dtype=np.float32)
+    else:
+        f32 = pcm_bytes_to_f32(audio, sample_rate, fmt)
+    pcm16 = (np.clip(f32, -1.0, 1.0) * 32767).astype(np.int16)
+    wav = pcm_to_wav(pcm16.tobytes(), sample_rate)
     result = client.audio.transcriptions.create(
         model=config.GROQ_MODEL,
         file=("chunk.wav", wav, "audio/wav"),
@@ -135,16 +163,17 @@ def transcribe_groq(audio: bytes, sample_rate: int = config.SAMPLE_RATE,
     return (result.text or "").strip()
 
 
-def transcribe(audio: bytes, sample_rate: int = config.SAMPLE_RATE,
-               language: str = "ar", initial_prompt: str = None) -> str:
-    if _is_silence(audio, sample_rate):
+def transcribe(audio: bytes | np.ndarray, sample_rate: int = config.SAMPLE_RATE,
+               language: str = "ar", initial_prompt: str = None,
+               fmt: str = "i16") -> str:
+    if _is_silence(audio, sample_rate, fmt):
         return ""
     if config.GROQ_API_KEY:
         try:
-            return transcribe_groq(audio, sample_rate, language, initial_prompt)
+            return transcribe_groq(audio, sample_rate, language, initial_prompt, fmt)
         except Exception as e:  # fall back to local on any cloud error
             print(f"[asr] groq failed ({e}), using local")
-    return transcribe_local(audio, sample_rate, language, initial_prompt)
+    return transcribe_local(audio, sample_rate, language, initial_prompt, fmt)
 
 
 def transcribe_b64(b64: str, sample_rate: int = config.SAMPLE_RATE,

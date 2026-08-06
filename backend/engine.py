@@ -54,7 +54,8 @@ class Engine:
         return self.page_info(page_no)
 
     # ---- processing ----
-    def process_audio(self, pcm_bytes: bytes, sample_rate: int = config.SAMPLE_RATE) -> dict:
+    def process_audio(self, pcm_bytes: bytes, sample_rate: int = config.SAMPLE_RATE,
+                      fmt: str = "i16") -> dict:
         st = self._state()
         page = self.get_page(st["page_no"])
         lines = [l for l in page if l["text"]]
@@ -70,7 +71,7 @@ class Engine:
             prompt = " ".join(parts)[:400]
 
         with _LOCK:
-            text = asr.transcribe(pcm_bytes, sample_rate, initial_prompt=prompt)
+            text = asr.transcribe(pcm_bytes, sample_rate, initial_prompt=prompt, fmt=fmt)
 
         if not text:
             return {"text": "", "line": st["last_line"], "line_no": None,
@@ -78,7 +79,12 @@ class Engine:
 
         idx, score = tracker.find_current_line(text, lines, st["last_line"])
         if score < 0.15:
-            idx = st["last_line"] or 0
+            # Low confidence: stay on the current line. With no line yet, emit
+            # no line at all instead of yanking the reader to the first line.
+            if st["last_line"] is None:
+                return {"text": text, "line": None, "line_no": None,
+                        "words": [], "accuracy": None}
+            idx = st["last_line"]
         st["last_line"] = idx
 
         line = lines[idx]

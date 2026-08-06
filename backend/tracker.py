@@ -25,13 +25,19 @@ def find_current_line(user_text: str, page_lines: list[dict], last_line: int | N
         line_norm = normalize.normalize(page_lines[idx]["text"])
         return _similarity(user_norm, line_norm)
 
-    candidates = list(range(len(page_lines)))
+    # When we know the current line, only score candidates within a window.
+    # Scanning the whole page lets a repeated word on a far-away line win and
+    # yank the reader back to an earlier line.
     if last_line is not None:
         start = max(0, last_line - WINDOW)
         end = min(len(page_lines), last_line + WINDOW + 1)
-        candidates = list(range(start, end)) + candidates
+        candidates = list(range(start, end))
+        if not candidates:
+            return last_line, 0.0
+    else:
+        candidates = list(range(len(page_lines)))
 
-    best_idx, best_score = last_line or 0, 0.0
+    best_idx, best_score = last_line, 0.0
     for idx in candidates:
         s = score_for(idx)
         if s > best_score:

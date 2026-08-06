@@ -1,84 +1,68 @@
 WHERE TO RESUME — AI QURAN RECITATION FEEDBACK SYSTEM
 =====================================================
-Written: 2026-08-06
-
-RESUME HERE (incomplete task)
------------------------------
-Delete GitHub repo `dev-mbi/register`. Blocked: token lacks `delete_repo` scope.
-Device flow `gh auth refresh -h github.com -s delete_repo` not completing.
-Either user deletes via web UI (settings -> Danger Zone -> Delete this repository),
-or retry device flow and approve the code within ~1 minute. Project code itself
-is done and clean.
+Written: 2026-08-06 (evening), updated after Day 9 session
 
 STATUS
 ------
-Everything is built, tested (47 tests passing), committed and pushed to GitHub
-(public repo: dev-mbi/qari, branch main). The app runs locally and serves over:
-  - http://localhost:5000   (plain HTTP)
-  - https://localhost:5001  (self-signed cert, for browsers that force HTTPS)
+All built, 55 tests passing, committed to GitHub (dev-mbi/qari, branch main).
+App runs locally (HTTP 5000 + HTTPS 5001) and is exposed via a Cloudflare
+quick tunnel (URL is EPHEMERAL — changes each tunnel restart; restart with:
+  ~/.local/bin/cloudflared tunnel --url http://localhost:5000)
 
-LATEST (Day 8 — Performance & ASR quality)
------------------------------------------
-- Silent chunks are dropped before the model (client + server gates): an empty
-  2.5s chunk costs ~0.3ms instead of ~0.9s of CPU.
-- Anti-aliasing low-pass resampler added on client and server (48k -> 16k no
-  longer point-decimated) — cleaner audio into whisper.
-- Tunable ASR knobs in config.env: QARI_BEAM_SIZE (1 fast / 5 accurate),
-  QARI_CONDITION_ON_PREVIOUS, QARI_VAD_MIN_SILENCE.
-- Lookahead prompt: whisper now gets current + next line text for context.
+LATEST (Day 9 — live feedback + Groq + tracking fixes)
+-----------------------------------------------------
+1. FIXED the main bug that stopped word highlighting: browser sent float32
+   PCM but the server decoded it as int16 -> garbage into whisper. Now:
+   - frontend sends 16-bit PCM + explicit "format":"i16" (half the bandwidth)
+   - backend asr.pcm_bytes_to_f32() decodes by declared format (i16/f32),
+     no format guessing (guessing was fragile — int16 bytes can look like f32)
+   - fmt is threaded through app.py -> engine.py -> asr.py (local + Groq)
+2. Groq cloud transcription enabled (GROQ_API_KEY in config.env):
+   feedback now ~0.75s through the tunnel instead of 3-4s local CPU.
+   Same key also set in /home/mbi/lx.cd.helper/.env and as the GitHub
+   Actions secret GROQ_API_KEY for the EC2 deploy.
+3. Fixed 3 tracking bugs:
+   - engine no longer jumps to the FIRST line when confidence is low
+     (stays on current line; emits nothing when no line established yet)
+   - tracker only scores the 5-line window once a line is known, so a
+     repeated word on a far line can't yank the reader backwards
+   - comparer does a right-to-left pass so a repeated word aligns to its
+     LATER occurrence instead of the first (was wrongly marked missing)
+4. 4 new tests (55 total): pcm_bytes_to_f32 int16/f32 + bad length, sine
+   round-trip, repeated-word alignment, low-confidence no-jump, window stays.
 
 START IT
 --------
   cd /home/mbi/qari && ./run.sh
-Then open:  https://localhost:5001   (click "Advanced -> Continue" on the cert warning)
+Local: http://localhost:5000  /  https://localhost:5001 (mic)
+Tunnel (public, ephemeral): restart cloudflared if needed -> new URL.
+Test: .venv/bin/python -m pytest tests -q   (55 pass)
 
 PIPELINE
 --------
-Mic -> 48k -> FIR low-pass 16k -> RMS gate (drop silence) -> 2.5s chunk
-  -> socket audio_chunk -> RMS gate -> faster-whisper (beam=1, VAD)
-  -> current+next line prompt -> normalize -> tracker (line) -> comparer (words)
-  -> feedback emit -> Mushaf UI (green line / red wrong / orange missing / accuracy)
+Mic -> 48k -> FIR low-pass 16k -> RMS gate -> 2.5s chunk -> int16 PCM
+  -> socket audio_chunk -> RMS gate -> Groq whisper-large-v3-turbo (fast)
+  -> current+next line prompt -> normalize -> tracker (line, 5-line window)
+  -> comparer (words, repeat-aware) -> feedback -> Mushaf UI highlights
 
-NEXT STEP (blocked: NO MICROPHONE YET)
--------------------------------------
-The user does not have a microphone yet ("i dont have a microphone lol, i will get
-one yesterday"). When the mic arrives:
-  1. Start the server:  cd /home/mbi/qari && ./run.sh
-  2. Open https://localhost:5001 in the browser.
-  3. Click the padlock icon in the address bar -> allow Microphone (Chrome blocks
-     it by default the first time). Then reload the page.
-  4. Click the green "Start" mic button and recite the displayed page.
-     Expected behaviour: the active line turns green and follows the recitation,
-     wrong words turn red, missing words orange, accuracy updates live, and a
-     "Well done!" banner appears on reaching the last line with >=85% accuracy.
-  5. IMPORTANT: never open the LAN IP (http://192.168.x.x:5000) for mic use -
-     Chrome blocks microphone on non-secure origins. Always use https://localhost:5001.
-
-KNOWN NOTES
------------
-- Mic is untested end-to-end on a real device (was verified in headless Chrome
-  with a fake audio device: Start/Stop + "Listening..." + no JS errors).
-- ASR runs faster-whisper "small" on CPU, ~0.9s per 2.5s audio chunk (no GPU on
-  this machine). Groq fallback is available if whisper misrecognizes the
-  user's voice or is too slow (see config.env, GROQ toggle).
-- If word matching feels off for the user's voice, tune matching thresholds in
-  backend/comparer.py. For better recognition (not latency) set
-  QARI_BEAM_SIZE=5 in config.env.
+TODAY'S UNFINISHED / TOMORROW
+-----------------------------
+1. LIVE MIC TEST still the big one — user is now testing live through the
+   tunnel. Remaining complaints to verify fixed: line jumping back to first
+   line, "nonsense" word mistakes, repeated-word misalignment. All three
+   patched + tested; needs real-voice confirmation.
+2. If recognition still off for the user's voice -> tune comparer fuzzy
+   threshold (backend/comparer.py _fuzzy_equal, currently 0.85) or raise
+   QARI_BEAM_SIZE.
+3. Server keep-alive: dev server dies if the shell tool times out. Run via
+   systemd-run --user --unit=qari for persistence, or restart manually.
+4. Old unrelated task: delete GitHub repo dev-mbi/register (blocked: token
+   lacks delete_repo scope; do it in GitHub web UI).
+5. lx.cd.helper: deploy now writes GROQ_API_KEY from secret to server .env.
+   Confirm the EC2 site is still up after the redeploy.
 
 KEY FILES
 ---------
-- /home/mbi/qari/backend/app.py       : Flask+SocketIO server (HTTP 5000 + HTTPS 5001)
-- /home/mbi/qari/backend/engine.py    : orchestration: transcribe -> track -> compare
-- /home/mbi/qari/backend/asr.py       : faster-whisper local / Groq fallback
-- /home/mbi/qari/frontend/            : Mushaf UI (vanilla JS), all controls in English
-- /home/mbi/qari/data/pages.json      : 604 pages x 15 lines (Tanzil Uthmani, Madani layout)
-- /home/mbi/qari/tests/               : 47 passing tests
-- /home/mbi/qari/certs/               : self-signed cert/key for HTTPS 5001 (gitignored)
-
-RUN THE TESTS
--------------
-  cd /home/mbi/qari && .venv/bin/pytest tests -q
-
-RESTART AFTER REBOOT
---------------------
-  systemctl --user start qari.service   (or cd /home/mbi/qari && ./run.sh)
+- backend/app.py, engine.py, asr.py, tracker.py, comparer.py, normalize.py
+- frontend/app.js  (int16 send + word status classes)
+- data/pages.json (604 pages x 15 lines), tests/ (55), certs/ (self-signed)

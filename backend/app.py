@@ -39,9 +39,10 @@ def transcribe():
     body = request_json()
     b64 = body.get("audio", "")
     sr = body.get("sample_rate", config.SAMPLE_RATE)
+    fmt = body.get("format", "i16")
     try:
         raw = base64.b64decode(b64)
-        text = get_engine().process_audio(raw, sr)
+        text = get_engine().process_audio(raw, sr, fmt=fmt)
         return jsonify(text)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -71,7 +72,8 @@ def on_audio_chunk(data):
     try:
         pcm = base64.b64decode(data.get("pcm", ""))
         sr = int(data.get("sample_rate", config.SAMPLE_RATE))
-        result = get_engine().process_audio(pcm, sr)
+        fmt = data.get("format", "i16")
+        result = get_engine().process_audio(pcm, sr, fmt=fmt)
         emit("feedback", result)
     except Exception as e:
         emit("error", {"message": str(e)})

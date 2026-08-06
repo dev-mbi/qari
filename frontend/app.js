@@ -328,10 +328,14 @@ function setMicStatus(msg, isError) {
 }
 
 function sendChunk(f32) {
-  const buf = new ArrayBuffer(f32.length * 4);
-  new Float32Array(buf).set(f32);
-  const b64 = arrayBufferToBase64(buf);
-  socket.emit('audio_chunk', { pcm: b64, sample_rate: TARGET_SR });
+  // float32 [-1,1] -> 16-bit PCM LE (half the upload size over the tunnel)
+  const i16 = new Int16Array(f32.length);
+  for (let i = 0; i < f32.length; i++) {
+    const s = f32[i];
+    i16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  const b64 = arrayBufferToBase64(i16.buffer);
+  socket.emit('audio_chunk', { pcm: b64, sample_rate: TARGET_SR, format: 'i16' });
 }
 
 function arrayBufferToBase64(buffer) {

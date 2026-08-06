@@ -41,12 +41,11 @@ def compare_words(user_text: str, actual_words: list[dict]) -> list[dict]:
     status_map = {i: "missing" for i, _ in real}
 
     sm = SequenceMatcher(None, user_words, actual, autojunk=False)
-    pending = 0
+    unmatched_user = []  # user words not consumed by an equal/replace block
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
             for off in range(j2 - j1):
                 status_map[real[j1 + off][0]] = "correct"
-            pending = 0
         elif tag == "replace":
             n_user, n_actual = i2 - i1, j2 - j1
             for off in range(n_actual):
@@ -57,16 +56,34 @@ def compare_words(user_text: str, actual_words: list[dict]) -> list[dict]:
                     status_map[real[j1 + off][0]] = "wrong"
                 else:
                     status_map[real[j1 + off][0]] = "missing"
-            pending += max(0, n_user - n_actual)  # leftover user words -> wrong
+            # leftover user words from this block become candidates for repeats
+            for off in range(max(0, n_user - n_actual)):
+                unmatched_user.append(user_words[i1 + n_actual + off])
         elif tag == "delete":
-            # user words with no actual counterpart -> extra words spoken
-            pending += (i2 - i1)
+            # user words with no actual counterpart -> candidates for repeats
+            unmatched_user.extend(user_words[i1:i2])
         elif tag == "insert":
-            # actual words with no user counterpart -> words the user skipped
+            # actual words with no user counterpart -> user skipped them
             for off in range(j2 - j1):
                 status_map[real[j1 + off][0]] = "missing"
 
-    # extra user words not accounted for -> mark the last real word as wrong
+    # Repeated words: difflib aligns a repeat to its FIRST occurrence, leaving
+    # the later identical word "missing" even though the reader said it. Do a
+    # right-to-left pass so leftover user words match the LATER missing word.
+    if unmatched_user:
+        missing_idx = [i for i, st in status_map.items() if st == "missing"]
+        for i in reversed(missing_idx):
+            if not unmatched_user:
+                break
+            w = actual[i]
+            for u in range(len(unmatched_user) - 1, -1, -1):
+                if _fuzzy_equal(unmatched_user[u], w):
+                    status_map[i] = "correct"
+                    del unmatched_user[u]
+                    break
+
+    # extra user words still unaccounted for -> mark the last real word as wrong
+    pending = len(unmatched_user)
     if pending > 0 and real:
         for i in range(len(real) - 1, -1, -1):
             if status_map[real[i][0]] != "missing":

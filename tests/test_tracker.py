@@ -40,3 +40,11 @@ def test_window_prefers_nearby_line():
 def test_line_numbers_present():
     numbers = [l["n"] for l in LINES]
     assert numbers == sorted(numbers)
+
+
+def test_repeated_word_does_not_jump_outside_window():
+    # Reciting a far line's text while on line 0 must stay in the window, so a
+    # repeated word elsewhere on the page can't yank the reader backwards.
+    far = LINES[6]["text"]
+    idx, _ = find_current_line(far, LINES, last_line=0)
+    assert idx <= 5

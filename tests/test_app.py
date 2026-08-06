@@ -23,7 +23,7 @@ def client():
 
 @pytest.fixture(autouse=True)
 def fake_asr(monkeypatch):
-    def fake_transcribe(audio, sample_rate=16000, language="ar", initial_prompt=None):
+    def fake_transcribe(audio, sample_rate=16000, language="ar", initial_prompt=None, fmt="i16"):
         return "ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ"
     monkeypatch.setattr(asr, "transcribe", fake_transcribe)
 

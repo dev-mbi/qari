@@ -19,7 +19,7 @@ def client():
 
 @pytest.fixture(autouse=True)
 def fake_asr(monkeypatch):
-    def fake_transcribe(audio, sample_rate=16000, language="ar", initial_prompt=None):
+    def fake_transcribe(audio, sample_rate=16000, language="ar", initial_prompt=None, fmt="i16"):
         return "ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ"
     monkeypatch.setattr(asr, "transcribe", fake_transcribe)
 
@@ -69,6 +69,37 @@ def test_mid_word_pause_keeps_session():
     first = eng._state()["last_line"]
     eng.process_audio(np.zeros(16000, dtype=np.int16).tobytes(), 16000)
     assert eng._state()["last_line"] == first
+
+
+def test_engine_low_confidence_stays_on_line(monkeypatch):
+    from backend import tracker
+
+    def low(*a, **k):
+        return 0, 0.05
+
+    monkeypatch.setattr(tracker, "find_current_line", low)
+    eng = Engine()
+    eng.set_page(1)
+    eng._state()["last_line"] = 2
+    r = eng.process_audio(np.zeros(16000, dtype=np.int16).tobytes(), 16000)
+    assert eng._state()["last_line"] == 2
+    assert r["line_no"] == [l for l in eng.get_page(1) if l["text"]][2]["n"]
+
+
+def test_engine_first_chunk_low_confidence_no_jump(monkeypatch):
+    """No line yet + low confidence must NOT jump to the first line."""
+    from backend import tracker
+
+    def low(*a, **k):
+        return 0, 0.05
+
+    monkeypatch.setattr(tracker, "find_current_line", low)
+    eng = Engine()
+    eng.set_page(1)
+    eng._state()["last_line"] = None
+    r = eng.process_audio(np.zeros(16000, dtype=np.int16).tobytes(), 16000)
+    assert r["line_no"] is None
+    assert eng._state()["last_line"] is None
 
 
 def test_socket_select_page_bounds(client):

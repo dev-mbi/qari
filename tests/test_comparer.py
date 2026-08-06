@@ -63,6 +63,15 @@ def test_verse_markers_never_counted():
             assert s["status"] in ("correct",)  # markers tagged but not penalized
 
 
+def test_repeated_word_both_occurrences_correct():
+    # إِيَّاكَ repeats; difflib aligns it to the first occurrence, wrongly
+    # leaving the second "missing". The right-to-left post-pass fixes it.
+    line = next(l for l in LINES if l["n"] == 12)  # إِيَّاكَ نَعْبُدُ وَإِيَّاكَ...
+    real_text = " ".join(w["t"] for w in line["words"] if w["m"] is None)
+    res = compare_words(real_text, line["words"])
+    assert statuses(res) == ["correct"] * len(line["words"])
+
+
 def test_accuracy_partial():
     res = [{"status": "correct"}, {"status": "correct"}, {"status": "wrong"}, {"status": "missing"}]
     assert accuracy(res) == 50.0
